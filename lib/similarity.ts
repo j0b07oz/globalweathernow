@@ -65,6 +65,7 @@ const MIN_STD = 1e-9;
  * bounded so the temperature signal still ranks the candidates.
  */
 const Z_CLAMP = 6;
+const DISTANCE_TIE_EPSILON = 1e-9;
 
 export function mean(values: number[]): number {
   if (values.length === 0) return 0;
@@ -200,14 +201,25 @@ export function matchDay(
   const stats = computeStats(candidateFeatures, DAY_KEYS);
   const targetF = dayToFeatures(target);
 
-  const distances = candidateFeatures.map((c) =>
-    weightedZDistance(targetF, c, stats, DAY_WEIGHTS, DAY_KEYS),
-  );
-  const bestIndex = pickMostRecentWithinTolerance(
-    distances,
-    history.map((d) => d.date),
-    tolerance,
-  );
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  for (let i = 0; i < candidateFeatures.length; i++) {
+    const dist = weightedZDistance(
+      targetF,
+      candidateFeatures[i],
+      stats,
+      DAY_WEIGHTS,
+      DAY_KEYS,
+    );
+    if (
+      dist < bestDistance - DISTANCE_TIE_EPSILON ||
+      (Math.abs(dist - bestDistance) <= DISTANCE_TIE_EPSILON &&
+        history[i].date > history[bestIndex].date)
+    ) {
+      bestDistance = dist;
+      bestIndex = i;
+    }
+  }
 
   return {
     item: history[bestIndex],
@@ -237,14 +249,25 @@ export function matchHour(
   const stats = computeStats(candidateFeatures, HOUR_KEYS);
   const targetF = hourToFeatures(target);
 
-  const distances = candidateFeatures.map((c) =>
-    weightedZDistance(targetF, c, stats, HOUR_WEIGHTS, HOUR_KEYS),
-  );
-  const bestIndex = pickMostRecentWithinTolerance(
-    distances,
-    candidates.map((h) => h.time),
-    tolerance,
-  );
+  let bestIndex = 0;
+  let bestDistance = Infinity;
+  for (let i = 0; i < candidateFeatures.length; i++) {
+    const dist = weightedZDistance(
+      targetF,
+      candidateFeatures[i],
+      stats,
+      HOUR_WEIGHTS,
+      HOUR_KEYS,
+    );
+    if (
+      dist < bestDistance - DISTANCE_TIE_EPSILON ||
+      (Math.abs(dist - bestDistance) <= DISTANCE_TIE_EPSILON &&
+        candidates[i].time > candidates[bestIndex].time)
+    ) {
+      bestDistance = dist;
+      bestIndex = i;
+    }
+  }
 
   return {
     item: candidates[bestIndex],
