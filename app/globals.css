@@ -1,0 +1,93 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    Helvetica, Arial, sans-serif;
+
+  --background: 40 30% 98%;
+  --foreground: 20 14% 12%;
+  --card: 0 0% 100%;
+  --card-foreground: 20 14% 12%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 20 14% 12%;
+  --muted: 30 14% 94%;
+  --muted-foreground: 25 8% 44%;
+  --accent: 14 84% 52%;
+  --accent-foreground: 0 0% 100%;
+  --border: 30 12% 88%;
+  --input: 30 12% 86%;
+  --ring: 14 84% 52%;
+  --radius: 0.85rem;
+}
+
+.dark {
+  --background: 24 14% 7%;
+  --foreground: 40 22% 92%;
+  --card: 24 12% 10%;
+  --card-foreground: 40 22% 92%;
+  --popover: 24 12% 11%;
+  --popover-foreground: 40 22% 92%;
+  --muted: 24 8% 16%;
+  --muted-foreground: 30 8% 62%;
+  --accent: 16 90% 57%;
+  --accent-foreground: 24 14% 7%;
+  --border: 30 8% 20%;
+  --input: 30 8% 22%;
+  --ring: 16 90% 57%;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Large editorial temperature numerals. */
+.temp-numeral {
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.4s ease-out both;
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    hsl(var(--muted)) 25%,
+    hsl(var(--border)) 37%,
+    hsl(var(--muted)) 63%
+  );
+  background-size: 400% 100%;
+  animation: shimmer 1.4s ease infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    background-position: 100% 0;
+  }
+  100% {
+    background-position: -100% 0;
+  }
+}
