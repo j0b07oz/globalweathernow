@@ -181,6 +181,51 @@ describe("matchDay", () => {
     const result = matchDay(target, history)!;
     expect(result.item.date).toBe("2025-05-01");
   });
+
+  it("prefers the most recent of two indistinguishable days (the 'last time' promise)", () => {
+    // Reproduces the nearby-city bug report: an old day and yesterday are an
+    // identical match; the matcher must return yesterday, not the old day.
+    const feel = { apparentTempMean: 20, tempMax: 25, tempMin: 15, dewPointMean: 14 };
+    const history = [
+      makeDay("2025-06-14", feel),
+      makeDay("2025-09-01", { apparentTempMean: 6, tempMax: 10, tempMin: 2, dewPointMean: 0 }),
+      makeDay("2026-01-10", { apparentTempMean: -3, tempMax: 1, tempMin: -7, dewPointMean: -8 }),
+      makeDay("2026-05-27", feel), // yesterday — identical feel
+    ];
+    const target = makeDay("2026-05-28", feel);
+    const result = matchDay(target, history)!;
+    expect(result.item.date).toBe("2026-05-27");
+    expect(result.distance).toBeCloseTo(0, 6);
+  });
+
+  it("returns the most recent occurrence when the season repeats within the year", () => {
+    // A northern year is cold at BOTH ends (the prior January and the recent
+    // December). A cold target must resolve to the recent December.
+    const home = makeYear(182);
+    const coldTarget = makeDay("2026-01-05", {
+      apparentTempMean: 3,
+      tempMax: 8,
+      tempMin: -2,
+      dewPointMean: -3,
+    });
+    const month = Number(matchDay(coldTarget, home)!.item.date.slice(5, 7));
+    expect(month).toBeGreaterThanOrEqual(11);
+  });
+
+  it("does NOT override a clear winner with a more recent but worse match", () => {
+    // A recent day that feels nothing like the target must not win on recency.
+    const history = [
+      makeDay("2025-07-01", { apparentTempMean: 28, tempMax: 33, tempMin: 23, dewPointMean: 20 }),
+      makeDay("2026-01-15", { apparentTempMean: -5, tempMax: 0, tempMin: -10, dewPointMean: -9 }),
+    ];
+    const hotTarget = makeDay("2026-05-28", {
+      apparentTempMean: 27,
+      tempMax: 32,
+      tempMin: 22,
+      dewPointMean: 19,
+    });
+    expect(matchDay(hotTarget, history)!.item.date).toBe("2025-07-01");
+  });
 });
 
 describe("hour matching", () => {
@@ -230,5 +275,16 @@ describe("hour matching", () => {
     const noonTarget = makeHour(12);
     expect(matchHourOfDay(noonTarget, history, 1)).toBeNull();
     expect(matchHour(noonTarget, [])).toBeNull();
+  });
+
+  it("prefers the most recent indistinguishable hour", () => {
+    const ev = { apparentTemp: 16, dewPoint: 10, humidity: 65, windSpeed: 2, cloudCover: 30 };
+    const candidates = [
+      makeHour(20, { time: "2025-07-15T20:00", ...ev }),
+      makeHour(20, { time: "2026-02-01T20:00", apparentTemp: -2, dewPoint: -6 }),
+      makeHour(20, { time: "2026-05-27T20:00", ...ev }), // yesterday evening
+    ];
+    const target = makeHour(20, { time: "2026-05-28T20:00", ...ev });
+    expect(matchHour(target, candidates)!.item.time).toBe("2026-05-27T20:00");
   });
 });

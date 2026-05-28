@@ -222,6 +222,49 @@ function isoDate(d: Date): string {
   return d.toISOString().slice(0, 10);
 }
 
+/** Number of recent days the forecast endpoint backfills to bridge archive lag. */
+const RECENT_FILL_DAYS = 14;
+
+/**
+ * Merges two hour streams keyed by local timestamp. `primary` (the ERA5 archive)
+ * wins on overlap because it is authoritative reanalysis; `fill` (recent hours
+ * from the forecast endpoint) only contributes timestamps the archive is missing
+ * — the multi-day lag near "now" that the archive hasn't published yet.
+ */
+export function mergeHours(primary: HourPoint[], fill: HourPoint[]): HourPoint[] {
+  const byTime = new Map<string, HourPoint>();
+  for (const h of primary) byTime.set(h.time, h);
+  for (const h of fill) if (!byTime.has(h.time)) byTime.set(h.time, h);
+  return [...byTime.values()].sort((a, b) => a.time.localeCompare(b.time));
+}
+
+/**
+ * Pulls recent past hours from the forecast endpoint to cover the window the
+ * ERA5 archive lags behind. Caps at the location's current local time so we
+ * never feed *future* forecast hours into the "when did it last feel like this"
+ * candidate pool. Returns the local "now" date so the caller can exclude today.
+ */
+async function fetchRecentHours(
+  location: GeoLocation,
+  signal?: AbortSignal,
+): Promise<{ hours: HourPoint[]; nowLocal: string | null }> {
+  const params = new URLSearchParams({
+    latitude: String(location.latitude),
+    longitude: String(location.longitude),
+    current: "temperature_2m",
+    hourly: HOURLY_VARS,
+    timezone: "auto",
+    wind_speed_unit: "ms",
+    past_days: String(RECENT_FILL_DAYS),
+    forecast_days: "1",
+  });
+  const json = await fetchJson(`${FORECAST_URL}?${params}`, signal);
+  const nowLocal: string | null = json.current?.time ?? null;
+  let hours = parseHourly(json.hourly);
+  if (nowLocal) hours = hours.filter((h) => h.time <= nowLocal);
+  return { hours, nowLocal };
+}
+
 export async function fetchHistory(
   location: GeoLocation,
   signal?: AbortSignal,
@@ -240,12 +283,33 @@ export async function fetchHistory(
     wind_speed_unit: "ms",
   });
   const json = await fetchJson(`${ARCHIVE_URL}?${params}`, signal);
-  const hours = parseHourly(json.hourly);
-  const days = aggregateDays(hours);
+  const archiveHours = parseHourly(json.hourly);
+
+  // Bridge the archive's multi-day publishing lag with recent actuals from the
+  // forecast endpoint, so the genuinely-recent comparable days (incl. yesterday)
+  // are present as candidates. If this fails, fall back to archive-only.
+  let recentHours: HourPoint[] = [];
+  let nowLocal: string | null = null;
+  try {
+    const recent = await fetchRecentHours(location, signal);
+    recentHours = recent.hours;
+    nowLocal = recent.nowLocal;
+  } catch {
+    // Archive-only is still usable; the recent week just won't be a candidate.
+  }
+
+  const hours = mergeHours(archiveHours, recentHours);
+  const today = nowLocal?.slice(0, 10) ?? isoDate(now);
+
+  // Exclude today from the candidate pools: today's day is incomplete and a
+  // self-match ("it feels like today") is not the insight we want — "the last
+  // time it felt like this" should resolve to yesterday at the earliest.
+  const candidateHours = hours.filter((h) => h.time.slice(0, 10) < today);
+  const days = aggregateDays(candidateHours);
   return {
     location: { ...location, timezone: json.timezone ?? location.timezone },
     days,
-    hours,
+    hours: candidateHours,
   };
 }
 

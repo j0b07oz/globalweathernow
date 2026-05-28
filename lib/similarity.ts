@@ -126,6 +126,40 @@ export function scoreToConfidence(distance: number): Confidence {
   return "loose";
 }
 
+/**
+ * How close (in weighted-RMS-z distance) a candidate must be to the best match
+ * to count as "the same feel." The product promise is "the *last* time it felt
+ * like this," so among candidates that are indistinguishably close we prefer the
+ * most recent one. Daily weather is noisy enough that the strict global nearest
+ * neighbour is often an older day that beats yesterday by a hundredth of a sigma;
+ * without this tolerance a nearby city would match a date months ago instead of
+ * yesterday. Kept small so a clear winner is never overridden, and so genuinely
+ * different (e.g. opposite-season) targets still land in the correct season.
+ */
+export const RECENCY_TOLERANCE = 0.15;
+
+/**
+ * Given per-candidate distances and their (lexicographically sortable, i.e. ISO)
+ * timestamps, returns the index of the most recent candidate whose distance is
+ * within `tolerance` of the global minimum. Falls back to the strict minimum.
+ */
+function pickMostRecentWithinTolerance(
+  distances: number[],
+  times: string[],
+  tolerance: number,
+): number {
+  let min = Infinity;
+  for (const d of distances) if (d < min) min = d;
+  const cutoff = min + tolerance;
+  let chosen = -1;
+  for (let i = 0; i < distances.length; i++) {
+    if (distances[i] <= cutoff && (chosen < 0 || times[i] > times[chosen])) {
+      chosen = i;
+    }
+  }
+  return chosen;
+}
+
 export function dayToFeatures(d: DayPoint): Record<DayFeatureKey, number> {
   return {
     apparentTempMean: d.apparentTempMean,
@@ -160,6 +194,7 @@ const HOUR_KEYS = Object.keys(HOUR_WEIGHTS) as HourFeatureKey[];
 export function matchDay(
   target: DayPoint,
   history: DayPoint[],
+  tolerance = RECENCY_TOLERANCE,
 ): MatchResult<DayPoint> | null {
   if (history.length === 0) return null;
   const candidateFeatures = history.map(dayToFeatures);
@@ -189,8 +224,8 @@ export function matchDay(
   return {
     item: history[bestIndex],
     index: bestIndex,
-    distance: bestDistance,
-    confidence: scoreToConfidence(bestDistance),
+    distance: distances[bestIndex],
+    confidence: scoreToConfidence(distances[bestIndex]),
   };
 }
 
@@ -207,6 +242,7 @@ export function hourOfDayDistance(a: number, b: number): number {
 export function matchHour(
   target: HourPoint,
   candidates: HourPoint[],
+  tolerance = RECENCY_TOLERANCE,
 ): MatchResult<HourPoint> | null {
   if (candidates.length === 0) return null;
   const candidateFeatures = candidates.map(hourToFeatures);
@@ -236,8 +272,8 @@ export function matchHour(
   return {
     item: candidates[bestIndex],
     index: bestIndex,
-    distance: bestDistance,
-    confidence: scoreToConfidence(bestDistance),
+    distance: distances[bestIndex],
+    confidence: scoreToConfidence(distances[bestIndex]),
   };
 }
 
