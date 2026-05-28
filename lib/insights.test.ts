@@ -87,6 +87,22 @@ describe("seasonalReturn", () => {
     expect(["June", "July", "August"]).toContain(result.month);
   });
 
+
+
+  it("can return the current month when today already matches the target", () => {
+    const history: DayPoint[] = [];
+    for (let m = 0; m < 12; m++) {
+      const t = m === 4 ? 20 : 5;
+      const mm = String(m + 1).padStart(2, "0");
+      history.push(day(`2025-${mm}-15`, t + 4, t));
+    }
+
+    const may = new Date("2026-05-28T12:00:00Z");
+    const result = seasonalReturn(history, 20, may)!;
+    expect(result.month).toBe("May");
+    expect(result.monthsAway).toBe(0);
+  });
+
   it("returns null when history is empty", () => {
     expect(seasonalReturn([], 20, new Date())).toBeNull();
   });

@@ -91,7 +91,7 @@ export function seasonalReturn(
 
   let bestOffset = -1;
   let bestDelta = Infinity;
-  for (let offset = 1; offset <= 12; offset++) {
+  for (let offset = 0; offset <= 11; offset++) {
     const m = (now.getMonth() + offset) % 12;
     const val = means[m];
     if (val == null) continue;

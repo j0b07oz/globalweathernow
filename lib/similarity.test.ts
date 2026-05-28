@@ -159,6 +159,18 @@ describe("matchDay", () => {
     expect(month).toBeLessThanOrEqual(8);
   });
 
+
+
+  it("breaks exact-distance ties toward the most recent day", () => {
+    const older = makeDay("2025-05-01", { apparentTempMean: 18, tempMax: 22, tempMin: 14 });
+    const newer = makeDay("2026-05-27", { apparentTempMean: 18, tempMax: 22, tempMin: 14 });
+    const history = [older, newer];
+    const target = makeDay("2026-05-28", { apparentTempMean: 18, tempMax: 22, tempMin: 14 });
+
+    const result = matchDay(target, history)!;
+    expect(result.item.date).toBe("2026-05-27");
+  });
+
   it("ranks a closer day above a farther one", () => {
     const history = [
       makeDay("2025-02-01", { apparentTempMean: 0 }),
@@ -198,6 +210,19 @@ describe("hour matching", () => {
     const result = matchHourOfDay(eveningTarget, history, 2)!;
     expect(result.item.hour).toBeGreaterThanOrEqual(18);
     expect(result.item.hour).toBeLessThanOrEqual(22);
+  });
+
+
+
+  it("breaks exact-distance ties toward the most recent hour", () => {
+    const history = [
+      makeHour(20, { time: "2025-05-27T20:00", apparentTemp: 12 }),
+      makeHour(20, { time: "2026-05-27T20:00", apparentTemp: 12 }),
+    ];
+    const target = makeHour(20, { apparentTemp: 12 });
+
+    const result = matchHourOfDay(target, history, 0)!;
+    expect(result.item.time).toBe("2026-05-27T20:00");
   });
 
   it("returns null when no candidate hours fall in the window", () => {
